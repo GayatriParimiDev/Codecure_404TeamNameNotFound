@@ -6,6 +6,8 @@ from pathlib import Path
 
 import plotly.express as px
 import streamlit as st
+import pandas as pd
+
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -44,8 +46,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-@st.cache_resource(show_spinner=False)
 def load_pipeline(cache_key: int, _force_retrain: bool = False, _progress_callback=None):
+    cached_version = st.session_state.get("_loaded_pipeline_version")
+    if not _force_retrain and cached_version == cache_key and "_loaded_pipeline" in st.session_state:
+        return st.session_state["_loaded_pipeline"]
+
     try:
         pipeline = get_or_train_pipeline(force_retrain=_force_retrain, progress_callback=_progress_callback)
     except TypeError as exc:
@@ -56,6 +61,8 @@ def load_pipeline(cache_key: int, _force_retrain: bool = False, _progress_callba
     # Hotfix for pickled absolute paths originating from different environments
     pipeline.zinc_path = str(ROOT / "data" / "250k_rndm_zinc_drugs_clean_3.csv")
     pipeline.tox21_path = str(ROOT / "data" / "tox21.csv")
+    st.session_state["_loaded_pipeline"] = pipeline
+    st.session_state["_loaded_pipeline_version"] = cache_key
     return pipeline
 
 
@@ -82,7 +89,11 @@ def sidebar_controls():
     st.sidebar.markdown('<div style="font-size:1.5rem; font-weight:700; color:white; padding: 20px 20px 0 20px;">🧪 ToxRisk Studio</div>', unsafe_allow_html=True)
     st.sidebar.markdown('<div style="font-size:0.75rem; color:#8b949e; letter-spacing:1px; margin-bottom:30px; padding-left: 24px; text-transform:uppercase;">NOTEBOOK-GRADE TRAINING</div>', unsafe_allow_html=True)
     
-    page = st.sidebar.radio("", ["Overview", "Model Lab", "Predict", "Candidate Explorer"], label_visibility="collapsed")
+    page = st.sidebar.radio(
+        "App section",
+        ["Overview", "Model Lab", "Predict", "Candidate Explorer"],
+        label_visibility="collapsed",
+    )
     
     st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
     st.sidebar.button("+ New Analysis", type="primary", use_container_width=True)
@@ -460,13 +471,7 @@ def render_candidate_explorer(pipeline):
 def main():
     page, retrain = sidebar_controls()
     if page == "Overview":
-        # Pass a loaded pipeline if it's already in session, else pass None
-        # In a hard-reset world, we might not have a pipeline yet on first load.
-        try:
-            pipeline = load_pipeline(st.session_state.pipeline_version)
-            render_overview(pipeline)
-        except:
-            render_overview(None)
+        render_overview(None)
         return
 
     load_status = st.empty()

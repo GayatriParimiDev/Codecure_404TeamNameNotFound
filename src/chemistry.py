@@ -198,9 +198,20 @@ def build_support_features_for_query(
     kmeans: KMeans,
     nn: NearestNeighbors,
     support_lookup: pd.DataFrame,
+    descriptor_columns: list[str] | None = None,
 ) -> pd.DataFrame:
-    descriptor_columns = list(query_desc.columns)
-    query_scaled = scaler.transform(query_desc[descriptor_columns])
+    if descriptor_columns is None:
+        descriptor_columns = list(getattr(scaler, "feature_names_in_", query_desc.columns))
+    aligned_query_desc = query_desc.reindex(columns=descriptor_columns)
+    missing_columns = [column for column in descriptor_columns if column not in query_desc.columns]
+    if missing_columns:
+        raise ValueError(
+            "Missing required descriptor columns for support-feature generation: "
+            + ", ".join(missing_columns[:10])
+            + ("..." if len(missing_columns) > 10 else "")
+        )
+
+    query_scaled = scaler.transform(aligned_query_desc)
     distances, neighbors = nn.kneighbors(query_scaled)
 
     neighbor_logp = support_lookup.iloc[neighbors.flatten()]["logP"].to_numpy().reshape(len(neighbors), NN_NEIGHBORS)

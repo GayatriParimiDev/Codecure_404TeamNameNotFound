@@ -6,6 +6,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Any
+import warnings
 
 import joblib
 import numpy as np
@@ -23,6 +24,11 @@ try:
     from xgboost import XGBClassifier
 except ImportError:  # pragma: no cover
     XGBClassifier = None
+
+try:
+    from sklearn.exceptions import InconsistentVersionWarning
+except ImportError:  # pragma: no cover
+    InconsistentVersionWarning = UserWarning
 
 from src.chemistry import (
     attach_feature_values,
@@ -55,6 +61,8 @@ from src.config import (
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+LEGACY_XGBOOST_PICKLE_WARNING = "If you are loading a serialized model"
 
 
 RF_CONFIGS = [
@@ -329,7 +337,7 @@ class ToxicityPipeline:
 
     @classmethod
     def load(cls, path: Path | str = PIPELINE_PATH) -> "ToxicityPipeline":
-        pipeline = joblib.load(path)
+        pipeline = _load_joblib_artifact(path)
         pipeline._normalize_runtime_models()
         return pipeline
 
@@ -379,7 +387,7 @@ class ToxicityPipeline:
             progress = 0.58 + 0.30 * (index / total_targets)
             report_progress(progress_callback, progress, f"Loading endpoint model {index}/{total_targets}: {target}")
             target_info = model_meta[target]
-            rf_model = joblib.load(model_dir / Path(target_info["rf_model_path"]).name)
+            rf_model = _load_joblib_artifact(model_dir / Path(target_info["rf_model_path"]).name)
             xgb_model = load_xgb_model(model_dir / Path(target_info["xgb_model_path"]).name)
             if hasattr(rf_model, "n_jobs"):
                 rf_model.n_jobs = 1
@@ -462,8 +470,16 @@ class ToxicityPipeline:
         if valid_df.empty:
             raise ValueError("Invalid SMILES string.")
 
-        support_df = build_support_features_for_query(desc_df, self.scaler, self.kmeans, self.nn, self.support_lookup)
-        X_query = pd.concat([desc_df, support_df, fp_df], axis=1)[self.feature_columns]
+        model_desc_df = align_feature_frame(desc_df, self.descriptor_columns)
+        support_df = build_support_features_for_query(
+            model_desc_df,
+            self.scaler,
+            self.kmeans,
+            self.nn,
+            self.support_lookup,
+            descriptor_columns=self.descriptor_columns,
+        )
+        X_query = align_feature_frame(pd.concat([model_desc_df, support_df, fp_df], axis=1), self.feature_columns)
 
         rows = []
         for target in self.targets:
@@ -522,8 +538,16 @@ class ToxicityPipeline:
             zinc = zinc.sample(sample_size, random_state=RANDOM_STATE).reset_index(drop=True)
 
         zinc_valid, zinc_desc, zinc_fp = featurize_dataframe(zinc, include_fingerprints=True)
-        support_df = build_support_features_for_query(zinc_desc, self.scaler, self.kmeans, self.nn, self.support_lookup)
-        X_query = pd.concat([zinc_desc, support_df, zinc_fp], axis=1)[self.feature_columns]
+        model_desc_df = align_feature_frame(zinc_desc, self.descriptor_columns)
+        support_df = build_support_features_for_query(
+            model_desc_df,
+            self.scaler,
+            self.kmeans,
+            self.nn,
+            self.support_lookup,
+            descriptor_columns=self.descriptor_columns,
+        )
+        X_query = align_feature_frame(pd.concat([model_desc_df, support_df, zinc_fp], axis=1), self.feature_columns)
 
         scored = zinc_valid.copy()
         for target in self.targets:
@@ -752,7 +776,14 @@ def load_xgb_model(path: Path):
         model = XGBClassifier()
         model.load_model(path)
         return model
-    return joblib.load(path)
+    return _load_joblib_artifact(path)
+
+
+def _load_joblib_artifact(path: Path | str):
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+        warnings.filterwarnings("ignore", message=f".*{LEGACY_XGBOOST_PICKLE_WARNING}.*", category=UserWarning)
+        return joblib.load(path)
 
 
 def build_rf(config: dict[str, Any]):
@@ -818,6 +849,17 @@ def load_results_table(model_dir: Path) -> pd.DataFrame:
         if candidate.exists():
             return pd.read_csv(candidate)
     return pd.DataFrame()
+
+
+def align_feature_frame(frame: pd.DataFrame, expected_columns: list[str]) -> pd.DataFrame:
+    missing_columns = [column for column in expected_columns if column not in frame.columns]
+    if missing_columns:
+        raise ValueError(
+            "Feature frame is missing required columns: "
+            + ", ".join(missing_columns[:10])
+            + ("..." if len(missing_columns) > 10 else "")
+        )
+    return frame.reindex(columns=expected_columns)
 
 
 def pipeline_cache_is_current(path: Path, model_dir: Path, metadata_path: Path) -> bool:
