@@ -1,0 +1,28 @@
+# Core data stack
+numpy
+pandas
+scipy
+
+# ML and model persistence
+scikit-learn
+joblib
+xgboost
+imbalanced-learn
+
+# Chemistry / molecular features
+rdkit
+
+# Visualization
+matplotlib
+seaborn
+plotly
+
+# Explainability
+shap
+
+# App
+streamlit
+
+# Utilities
+tqdm
+python-dotenv

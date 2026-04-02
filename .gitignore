@@ -1,0 +1,19 @@
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Bytecode and cache
+__pycache__/
+*.py[cod]
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local outputs and artifacts
+artifacts/
+outputs/
+
+# OS files
+Thumbs.db
+Desktop.ini
