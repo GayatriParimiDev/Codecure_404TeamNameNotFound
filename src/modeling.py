@@ -820,15 +820,26 @@ def load_results_table(model_dir: Path) -> pd.DataFrame:
     return pd.DataFrame()
 
 
-def pipeline_matches_model_dir(path: Path, metadata_path: Path) -> bool:
+def pipeline_cache_is_current(path: Path, model_dir: Path, metadata_path: Path) -> bool:
     if not path.exists() or not metadata_path.exists():
         return False
     try:
-        pipeline = joblib.load(path)
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        pipeline_mtime = path.stat().st_mtime
+        metadata_mtime = metadata_path.stat().st_mtime
     except Exception:
         return False
-    return list(getattr(pipeline, "feature_columns", [])) == list(metadata.get("feature_columns", []))
+
+    if metadata_mtime > pipeline_mtime:
+        return False
+
+    try:
+        for artifact_path in model_dir.iterdir():
+            if artifact_path.is_file() and artifact_path.stat().st_mtime > pipeline_mtime:
+                return False
+    except Exception:
+        return False
+
+    return True
 
 
 def report_progress(progress_callback, fraction: float, message: str) -> None:
@@ -845,7 +856,7 @@ def get_or_train_pipeline(force_retrain: bool = False, path: Path | str = PIPELI
     report_progress(progress_callback, 0.02, "Checking cached artifacts")
     if not force_retrain:
         if path.exists():
-            if metadata_path.exists() and not pipeline_matches_model_dir(path, metadata_path):
+            if metadata_path.exists() and not pipeline_cache_is_current(path, model_dir, metadata_path):
                 report_progress(progress_callback, 0.08, "Cached pipeline is outdated, rebuilding from exported models")
                 pipeline = ToxicityPipeline.load_from_model_dir(model_dir, progress_callback=progress_callback)
                 report_progress(progress_callback, 0.96, "Saving refreshed pipeline cache")
