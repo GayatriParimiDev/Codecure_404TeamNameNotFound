@@ -16,3 +16,5 @@ outputs/
 # OS files
 Thumbs.db
 Desktop.ini
+
+artifacts/
