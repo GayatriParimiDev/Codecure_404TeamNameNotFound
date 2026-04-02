@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 import plotly.express as px
@@ -11,6 +12,7 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
 from src.config import DEFAULT_SCREEN_SAMPLE_SIZE, TARGETS
+from src.chemistry import mol_from_smiles
 from src.modeling import get_or_train_pipeline
 
 try:
@@ -62,7 +64,7 @@ st.markdown(
     }
     .stat-strip {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         gap: 0.8rem;
         margin-top: 1rem;
     }
@@ -97,9 +99,13 @@ st.markdown(
 )
 
 
-@st.cache_resource(show_spinner=False)
-def load_pipeline(cache_key: int, force_retrain: bool):
-    return get_or_train_pipeline(force_retrain=force_retrain)
+def load_pipeline(cache_key: int, force_retrain: bool, _progress_callback=None):
+    try:
+        return get_or_train_pipeline(force_retrain=force_retrain, progress_callback=_progress_callback)
+    except TypeError as exc:
+        if "unexpected keyword argument 'progress_callback'" not in str(exc):
+            raise
+        return get_or_train_pipeline(force_retrain=force_retrain)
 
 
 def risk_color(risk_band: str) -> str:
@@ -115,7 +121,7 @@ def risk_color(risk_band: str) -> str:
 def render_molecule(smiles: str):
     if Chem is None or Draw is None:
         return
-    mol = Chem.MolFromSmiles(smiles)
+    mol = mol_from_smiles(smiles)
     if mol is None:
         return
     st.image(Draw.MolToImage(mol, size=(420, 260)), use_container_width=False)
@@ -141,9 +147,9 @@ def render_overview():
         <div class="hero-card">
             <div class="hero-title">Drug Toxicity Prediction</div>
             <div class="hero-copy">
-                This app trains per-target toxicity classifiers on Tox21, reuses ZINC as chemistry-space support,
-                and exposes the full workflow in one Streamlit surface: metrics, interpretation, single-molecule scoring,
-                and safer-candidate exploration.
+                This project predicts whether a molecule may show toxicity risk from its chemical structure and
+                molecular descriptor profile. It also highlights which molecular properties contribute most strongly
+                to the prediction and exposes the workflow through a simple screening interface.
             </div>
             <div class="stat-strip">
                 <div class="stat-box"><div class="stat-label">Primary Dataset</div><div class="stat-value">Tox21</div></div>
@@ -159,25 +165,52 @@ def render_overview():
     col1, col2 = st.columns([1.1, 1])
     with col1:
         st.markdown('<div class="panel-card">', unsafe_allow_html=True)
-        st.subheader("What matches the second notebook")
+        st.subheader("Simple View")
         st.markdown(
             """
-            - Per-assay models use the same descriptor set, Morgan fingerprints, and chemistry-space support features.
-            - Validation picks `random_forest`, `xgboost`, or a 50/50 blend, then tunes the threshold per assay.
-            - The leaderboard reproduced in this app uses the same columns shown in `image copy.png`.
-            - Screening and prediction reuse the exact same feature logic instead of a separate demo-only path.
+            - We take molecular structure data and convert it into properties the model can understand.
+            - The model estimates whether a molecule may trigger toxicity-related risk.
+            - The app shows which properties seem to push the prediction higher or lower.
+            - Users can test one molecule at a time or screen a larger candidate pool.
             """
         )
         st.markdown("</div>", unsafe_allow_html=True)
     with col2:
         st.markdown('<div class="panel-card">', unsafe_allow_html=True)
-        st.subheader("Expected Demo Flow")
+        st.subheader("Technical View")
         st.markdown(
             """
-            1. Train the models in `Model Lab`.
-            2. Confirm the assay leaderboard looks close to the notebook baseline.
-            3. Paste a SMILES string in `Predict`.
-            4. Screen a ZINC sample in `Candidate Explorer`.
+            - We featurize molecules with RDKit descriptors, Morgan fingerprints, and ZINC-derived chemistry-space support features.
+            - We train per-assay toxicity models on Tox21 and compare `random_forest`, `xgboost`, and a learned blend.
+            - Validation selects thresholds per endpoint and the app reuses the same inference pipeline used in training.
+            - The interface exposes endpoint predictions, molecular drivers, structural alerts, and ZINC candidate screening.
+            """
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.write("")
+    task_col1, task_col2 = st.columns(2)
+    with task_col1:
+        st.markdown('<div class="panel-card">', unsafe_allow_html=True)
+        st.subheader("Expected Tasks")
+        st.markdown(
+            """
+            - Process molecular descriptor datasets
+            - Train ML models to predict toxicity
+            - Identify key structural features linked to toxicity
+            - Build a simple prediction interface or visualization
+            """
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+    with task_col2:
+        st.markdown('<div class="panel-card">', unsafe_allow_html=True)
+        st.subheader("How This App Matches")
+        st.markdown(
+            """
+            - `Model Lab` shows training results and assay performance.
+            - `Predict` scores user-provided SMILES and explains the prediction.
+            - `Risk Drivers` and structural alerts interpret the toxicity signal.
+            - `Candidate Explorer` screens a larger chemistry pool through the same model stack.
             """
         )
         st.markdown("</div>", unsafe_allow_html=True)
@@ -252,20 +285,44 @@ def render_predict(pipeline):
 
         left, right = st.columns([1.15, 0.85])
         with left:
-            color = risk_color(result["risk_band"])
+            tox21_risk_band = result.get("tox21_risk_band", result.get("risk_band", "Low"))
+            final_risk_band = result.get("risk_band", tox21_risk_band)
+            structural_alert_score = float(result.get("structural_alert_score", 0.0))
+            structural_alert_band = result.get("structural_alert_band", "None")
+            structural_alerts = result.get("structural_alerts", [])
+            risk_reasons = result.get("risk_reasons", [])
+            applicability_domain = result.get("applicability_domain", "Unknown")
+            ood_score = float(result.get("ood_score", 0.0))
+            max_endpoint_risk = float(result.get("max_endpoint_risk", result.get("overall_risk", 0.0)))
+            composite_risk = float(result.get("composite_risk", result.get("overall_risk", 0.0)))
+            color = risk_color(final_risk_band)
+            alert_color = "#b85042" if structural_alert_score >= 0.4 else "#c0841a" if structural_alert_score > 0 else "#1b7f5b"
             st.markdown(
                 f"""
                 <div class="hero-card">
                     <div class="stat-strip">
-                        <div class="stat-box"><div class="stat-label">Overall Risk</div><div class="stat-value">{result["overall_risk"]:.3f}</div></div>
-                        <div class="stat-box"><div class="stat-label">Risk Band</div><div class="stat-value" style="color:{color}">{result["risk_band"]}</div></div>
-                        <div class="stat-box"><div class="stat-label">Confidence</div><div class="stat-value">{result["confidence"]}</div></div>
+                        <div class="stat-box"><div class="stat-label">Tox21 Mean Risk</div><div class="stat-value">{result.get("overall_risk", 0.0):.3f}</div></div>
+                        <div class="stat-box"><div class="stat-label">Tox21 Max Risk</div><div class="stat-value">{max_endpoint_risk:.3f}</div></div>
+                        <div class="stat-box"><div class="stat-label">Composite Risk</div><div class="stat-value">{composite_risk:.3f}</div></div>
+                        <div class="stat-box"><div class="stat-label">Tox21 Band</div><div class="stat-value" style="color:{risk_color(tox21_risk_band)}">{tox21_risk_band}</div></div>
+                        <div class="stat-box"><div class="stat-label">Final Verdict</div><div class="stat-value" style="color:{color}">{final_risk_band}</div></div>
+                        <div class="stat-box"><div class="stat-label">Confidence</div><div class="stat-value">{result.get("confidence", "Unknown")}</div></div>
+                        <div class="stat-box"><div class="stat-label">Applicability</div><div class="stat-value">{applicability_domain}</div></div>
+                        <div class="stat-box"><div class="stat-label">Structure Alert</div><div class="stat-value" style="color:{alert_color}">{structural_alert_band}</div></div>
                         <div class="stat-box"><div class="stat-label">Active Alerts</div><div class="stat-value">{int(result["predictions"]["predicted_toxic"].sum())}</div></div>
                     </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+            if structural_alerts:
+                st.markdown(
+                    " ".join(f'<span class="pill">{alert}</span>' for alert in structural_alerts),
+                    unsafe_allow_html=True,
+                )
+            if risk_reasons:
+                st.caption("Why this verdict: " + ", ".join(risk_reasons))
+            st.caption(f"Out-of-distribution score: {ood_score:.2f}")
         with right:
             render_molecule(result["smiles"])
 
@@ -300,6 +357,8 @@ def render_predict(pipeline):
                 use_container_width=True,
                 hide_index=True,
             )
+            st.subheader("Structural Alert Score")
+            st.metric("Alert severity", f'{float(result.get("structural_alert_score", 0.0)):.2f}')
 
 
 def render_candidate_explorer(pipeline):
@@ -354,13 +413,31 @@ def main():
         render_overview()
         return
 
+    load_status = st.empty()
+    load_progress = st.progress(0, text="Preparing in-app training artifacts")
+    load_started_at = time.perf_counter()
+
+    def update_load_progress(fraction: float, message: str):
+        elapsed = max(time.perf_counter() - load_started_at, 0.01)
+        eta = max((elapsed / max(fraction, 0.01)) - elapsed, 0.0) if fraction < 1.0 else 0.0
+        load_progress.progress(
+            int(round(fraction * 100)),
+            text=f"{message} | elapsed {elapsed:.1f}s | est. remaining {eta:.1f}s",
+        )
+        load_status.caption(f"Artifact cache progress: {int(round(fraction * 100))}%")
+
     try:
-        with st.spinner("Preparing in-app training artifacts. This can take time on first run."):
-            pipeline = load_pipeline(st.session_state.pipeline_version, retrain)
+        pipeline = load_pipeline(st.session_state.pipeline_version, retrain, _progress_callback=update_load_progress)
     except Exception as exc:
+        load_progress.empty()
+        load_status.empty()
         st.error(str(exc))
         st.info("Install the packages in `requirements.txt`, then rerun `streamlit run streamlit_app/app.py`.")
         return
+
+    total_load_time = time.perf_counter() - load_started_at
+    load_progress.progress(100, text=f"Pipeline ready | total load time {total_load_time:.1f}s")
+    load_status.success(f"Artifact cache ready in {total_load_time:.1f}s")
 
     if page == "Model Lab":
         render_model_lab(pipeline)

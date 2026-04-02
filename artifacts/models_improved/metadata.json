@@ -1176,8 +1176,8 @@
     "NR-AR": {
       "selected_model": "blend",
       "threshold": 0.22,
-      "rf_model_path": "/content/models_improved/NR-AR__rf.joblib",
-      "xgb_model_path": "/content/models_improved/NR-AR__xgb.joblib",
+      "rf_model_path": "NR-AR__rf.joblib",
+      "xgb_model_path": "NR-AR__xgb.joblib",
       "rf_config": {
         "n_estimators": 500,
         "max_depth": 24,
@@ -1203,8 +1203,8 @@
     "NR-AR-LBD": {
       "selected_model": "blend",
       "threshold": 0.44,
-      "rf_model_path": "/content/models_improved/NR-AR-LBD__rf.joblib",
-      "xgb_model_path": "/content/models_improved/NR-AR-LBD__xgb.joblib",
+      "rf_model_path": "NR-AR-LBD__rf.joblib",
+      "xgb_model_path": "NR-AR-LBD__xgb.joblib",
       "rf_config": {
         "n_estimators": 500,
         "max_depth": 24,
@@ -1230,8 +1230,8 @@
     "NR-AhR": {
       "selected_model": "blend",
       "threshold": 0.21000000000000002,
-      "rf_model_path": "/content/models_improved/NR-AhR__rf.joblib",
-      "xgb_model_path": "/content/models_improved/NR-AhR__xgb.joblib",
+      "rf_model_path": "NR-AhR__rf.joblib",
+      "xgb_model_path": "NR-AhR__xgb.joblib",
       "rf_config": {
         "n_estimators": 400,
         "max_depth": null,
@@ -1257,8 +1257,8 @@
     "NR-Aromatase": {
       "selected_model": "blend",
       "threshold": 0.23,
-      "rf_model_path": "/content/models_improved/NR-Aromatase__rf.joblib",
-      "xgb_model_path": "/content/models_improved/NR-Aromatase__xgb.joblib",
+      "rf_model_path": "NR-Aromatase__rf.joblib",
+      "xgb_model_path": "NR-Aromatase__xgb.joblib",
       "rf_config": {
         "n_estimators": 400,
         "max_depth": null,
@@ -1284,8 +1284,8 @@
     "NR-ER": {
       "selected_model": "blend",
       "threshold": 0.35000000000000003,
-      "rf_model_path": "/content/models_improved/NR-ER__rf.joblib",
-      "xgb_model_path": "/content/models_improved/NR-ER__xgb.joblib",
+      "rf_model_path": "NR-ER__rf.joblib",
+      "xgb_model_path": "NR-ER__xgb.joblib",
       "rf_config": {
         "n_estimators": 400,
         "max_depth": null,
@@ -1311,8 +1311,8 @@
     "NR-ER-LBD": {
       "selected_model": "blend",
       "threshold": 0.35000000000000003,
-      "rf_model_path": "/content/models_improved/NR-ER-LBD__rf.joblib",
-      "xgb_model_path": "/content/models_improved/NR-ER-LBD__xgb.joblib",
+      "rf_model_path": "NR-ER-LBD__rf.joblib",
+      "xgb_model_path": "NR-ER-LBD__xgb.joblib",
       "rf_config": {
         "n_estimators": 500,
         "max_depth": 24,
@@ -1338,8 +1338,8 @@
     "NR-PPAR-gamma": {
       "selected_model": "xgboost",
       "threshold": 0.21000000000000002,
-      "rf_model_path": "/content/models_improved/NR-PPAR-gamma__rf.joblib",
-      "xgb_model_path": "/content/models_improved/NR-PPAR-gamma__xgb.joblib",
+      "rf_model_path": "NR-PPAR-gamma__rf.joblib",
+      "xgb_model_path": "NR-PPAR-gamma__xgb.joblib",
       "rf_config": {
         "n_estimators": 400,
         "max_depth": null,
@@ -1365,8 +1365,8 @@
     "SR-ARE": {
       "selected_model": "blend",
       "threshold": 0.17,
-      "rf_model_path": "/content/models_improved/SR-ARE__rf.joblib",
-      "xgb_model_path": "/content/models_improved/SR-ARE__xgb.joblib",
+      "rf_model_path": "SR-ARE__rf.joblib",
+      "xgb_model_path": "SR-ARE__xgb.joblib",
       "rf_config": {
         "n_estimators": 400,
         "max_depth": null,
@@ -1392,8 +1392,8 @@
     "SR-ATAD5": {
       "selected_model": "blend",
       "threshold": 0.14,
-      "rf_model_path": "/content/models_improved/SR-ATAD5__rf.joblib",
-      "xgb_model_path": "/content/models_improved/SR-ATAD5__xgb.joblib",
+      "rf_model_path": "SR-ATAD5__rf.joblib",
+      "xgb_model_path": "SR-ATAD5__xgb.joblib",
       "rf_config": {
         "n_estimators": 400,
         "max_depth": null,
@@ -1419,8 +1419,8 @@
     "SR-HSE": {
       "selected_model": "blend",
       "threshold": 0.27,
-      "rf_model_path": "/content/models_improved/SR-HSE__rf.joblib",
-      "xgb_model_path": "/content/models_improved/SR-HSE__xgb.joblib",
+      "rf_model_path": "SR-HSE__rf.joblib",
+      "xgb_model_path": "SR-HSE__xgb.joblib",
       "rf_config": {
         "n_estimators": 400,
         "max_depth": null,
@@ -1446,8 +1446,8 @@
     "SR-MMP": {
       "selected_model": "blend",
       "threshold": 0.44,
-      "rf_model_path": "/content/models_improved/SR-MMP__rf.joblib",
-      "xgb_model_path": "/content/models_improved/SR-MMP__xgb.joblib",
+      "rf_model_path": "SR-MMP__rf.joblib",
+      "xgb_model_path": "SR-MMP__xgb.joblib",
       "rf_config": {
         "n_estimators": 500,
         "max_depth": 24,
@@ -1473,8 +1473,8 @@
     "SR-p53": {
       "selected_model": "xgboost",
       "threshold": 0.05,
-      "rf_model_path": "/content/models_improved/SR-p53__rf.joblib",
-      "xgb_model_path": "/content/models_improved/SR-p53__xgb.joblib",
+      "rf_model_path": "SR-p53__rf.joblib",
+      "xgb_model_path": "SR-p53__xgb.joblib",
       "rf_config": {
         "n_estimators": 400,
         "max_depth": null,

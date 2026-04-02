@@ -1,0 +1,57 @@
+# Optional: score a small ZINC preview with the selected assay logic.
+preview_n = 10
+zinc_preview = zinc_valid.head(preview_n).copy()
+zinc_preview_desc = zinc_desc.loc[zinc_preview.index, descriptor_cols].copy()
+
+preview_scaled = scaler.transform(zinc_preview_desc[space_cols])
+preview_distances, preview_neighbors = nn.kneighbors(preview_scaled)
+preview_neighbor_logP = zinc_valid.iloc[preview_neighbors.flatten()]['logP'].to_numpy().reshape(len(preview_neighbors), NN_NEIGHBORS)
+preview_neighbor_qed = zinc_valid.iloc[preview_neighbors.flatten()]['qed'].to_numpy().reshape(len(preview_neighbors), NN_NEIGHBORS)
+preview_neighbor_SAS = zinc_valid.iloc[preview_neighbors.flatten()]['SAS'].to_numpy().reshape(len(preview_neighbors), NN_NEIGHBORS)
+preview_cluster_distance = kmeans.transform(preview_scaled).min(axis=1)
+
+preview_support = pd.DataFrame({
+    'zinc_nn_dist_min': preview_distances.min(axis=1),
+    'zinc_nn_dist_mean': preview_distances.mean(axis=1),
+    'zinc_nn_dist_std': preview_distances.std(axis=1),
+    'zinc_local_density': 1.0 / (1.0 + preview_distances.mean(axis=1)),
+    'zinc_nn_logP_mean': preview_neighbor_logP.mean(axis=1),
+    'zinc_nn_logP_std': preview_neighbor_logP.std(axis=1),
+    'zinc_nn_qed_mean': preview_neighbor_qed.mean(axis=1),
+    'zinc_nn_qed_std': preview_neighbor_qed.std(axis=1),
+    'zinc_nn_SAS_mean': preview_neighbor_SAS.mean(axis=1),
+    'zinc_nn_SAS_std': preview_neighbor_SAS.std(axis=1),
+    'cluster_distance': preview_cluster_distance,
+}, index=zinc_preview.index)
+
+zinc_preview_fp_rows = []
+for smiles in zinc_preview['smiles']:
+    mol = mol_from_smiles(smiles)
+    zinc_preview_fp_rows.append(morgan_fp(mol))
+
+zinc_preview_fp = pd.DataFrame(
+    zinc_preview_fp_rows,
+    index=zinc_preview.index,
+    columns=[f'fp_{i}' for i in range(FP_BITS)]
+)
+
+X_preview = pd.concat([zinc_preview_desc, preview_support, zinc_preview_fp], axis=1)[X.columns]
+
+for target in TARGETS:
+    model_info = artifacts['models'][target]
+    rf = joblib.load(MODEL_DIR / model_info['rf_model_path'])
+    xgb = joblib.load(MODEL_DIR / model_info['xgb_model_path'])
+
+    rf_prob = rf.predict_proba(X_preview)[:, 1]
+    xgb_prob = xgb.predict_proba(X_preview)[:, 1]
+
+    if model_info['selected_model'] == 'random_forest':
+        zinc_preview[target] = rf_prob
+    elif model_info['selected_model'] == 'xgboost':
+        zinc_preview[target] = xgb_prob
+    else:
+        w_rf, w_xgb = model_info['blend_weights']
+        zinc_preview[target] = w_rf * rf_prob + w_xgb * xgb_prob
+
+zinc_preview['overall_toxicity_risk'] = zinc_preview[TARGETS].mean(axis=1)
+zinc_preview[['smiles', 'logP', 'qed', 'SAS', 'overall_toxicity_risk']].head(preview_n)
